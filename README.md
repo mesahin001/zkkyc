@@ -8,6 +8,32 @@
 > 🏆 **Built for Zama Developer Program October 2025**  
 > A production-ready decentralized KYC system leveraging Fully Homomorphic Encryption for privacy-preserving identity verification.
 
+# zkKYC - Privacy-Preserving KYC with Zama FHE
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-fhekyc.ominas.ovh-blue?style=for-the-badge)](https://fhekyc.ominas.ovh)
+[![Admin Panel](https://img.shields.io/badge/Admin%20Panel-fhekyc--admin.ominas.ovh-green?style=for-the-badge)](https://fhekyc-admin.ominas.ovh)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+![Zama FHE](https://img.shields.io/badge/Powered%20by-Zama%20FHE-purple?style=flat-square)
+![Solidity](https://img.shields.io/badge/Solidity-0.8.24-blue?style=flat-square)
+![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=flat-square)
+
+---
+
+## 🔐 Privacy-Preserving Identity Verification
+
+zkKYC enables **KYC verification without exposing personal data** on blockchain using **Zama's Fully Homomorphic Encryption (FHE)** technology.
+
+### ✨ Key Features
+- 🔒 **End-to-End Encryption** - Personal data encrypted on-chain using FHE
+- 🛡️ **Privacy First** - Admins verify without seeing actual data
+- ⚡ **Real-Time Sync** - Event-driven blockchain indexer
+- 🌐 **Production Ready** - Full-stack dApp deployed on Sepolia
+
+### 🚀 Live Demo
+- **User Portal:** [fhekyc.ominas.ovh](https://fhekyc.ominas.ovh)
+- **Admin Panel:** [fhekyc-admin.ominas.ovh](https://fhekyc-admin.ominas.ovh)
+
 ---
 
 ## 🌐 Live Demo
