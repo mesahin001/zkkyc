@@ -1,0 +1,92 @@
+import { useEffect, useState, useCallback } from "react";
+// ... Diğer mevcut importlar ve util fonksiyonlar burada kalsın
+import { Contract } from "ethers"; // Type importu önemli!
+
+interface PendingApp {
+  user: string;
+  nameHash: string;
+  addressHash: string;
+  documentHash: string;
+  submittedAt: number;
+}
+
+// Burada kendi Sepolia contract deploy block'unu gir!
+const DEPLOY_BLOCK = 9377830; // <-- Kendi block numaranı DECIMAL olarak yaz!
+
+const fetchAllPendingApplications = async (
+  contract: Contract,
+  ethersProvider: providers.Provider,
+  deployBlock: number = DEPLOY_BLOCK,
+  pendingStatus: number = 1
+): Promise<PendingApp[]> => {
+  const step = 10;
+  const latestBlock = await ethersProvider.getBlockNumber();
+  const allEvents: any[] = [];
+  for (let fromBlock = deployBlock; fromBlock <= latestBlock; fromBlock += step) {
+    const toBlock = Math.min(fromBlock + step - 1, latestBlock);
+    try {
+      const events = await contract.queryFilter(contract.filters.KYCSubmitted(), fromBlock, toBlock);
+      allEvents.push(...events);
+    } catch (e) {
+      console.error(fromBlock, toBlock, e);
+    }
+  }
+  const addresses = new Set<string>();
+  for (const event of allEvents) {
+    const userAddress = event.args.user || event.args.realtor || event.args[0];
+    addresses.add(userAddress);
+  }
+  const pendingApps: PendingApp[] = [];
+  for (const addr of addresses) {
+    try {
+      const data = await contract.getKYCData(addr);
+      if (Number(data[3]) === pendingStatus) {
+        pendingApps.push({
+          user: addr,
+          nameHash: data[0].toString(),
+          addressHash: data[1].toString(),
+          documentHash: data[2].toString(),
+          submittedAt: Number(data[4]),
+        });
+      }
+    } catch (e) {
+      console.error("getKYCData error:", addr, e);
+    }
+  }
+  return pendingApps;
+};
+
+export const useZamaKYCAdmin = (parameters) => {
+  // Tüm eski state/init burada kalsın
+  const [pendingApplications, setPendingApplications] = useState<PendingApp[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Mevcut: chainId, accounts, isConnected, ethersReadonlyProvider, ethersSigner, zamaKYC, getContract ... buraya!
+
+  useEffect(() => {
+    (async () => {
+      if (!ethersReadonlyProvider || !zamaKYC?.data) return;
+      const contract = getContract("read");
+      const pendingList = await fetchAllPendingApplications(contract, ethersReadonlyProvider, DEPLOY_BLOCK);
+      setPendingApplications(pendingList);
+    })();
+  }, [ethersReadonlyProvider, zamaKYC?.data, refreshTrigger]);
+
+  // approveKYC, rejectKYC, selectUser, vs. Tüm eski fonksiyonlar burada!
+
+  return {
+    pendingApplications,
+    refreshPendingList: () => setRefreshTrigger((x) => x + 1),
+    isConnected,
+    message,
+    isProcessing,
+    chainId,
+    accounts,
+    // diğer eski hook fonksiyonları burada!
+    approveKYC,
+    rejectKYC,
+    // vs.
+  };
+}

@@ -1,0 +1,242 @@
+"use client";
+
+import { useState } from "react";
+import { useAccount } from "wagmi";
+import { useZamaKYC } from "~~/hooks/kyc/useZamaKYC";
+
+export const ZamaKYCForm = () => {
+  const { address, isConnected } = useAccount();
+  const instance = undefined; // Hook will initialize
+  const kyc = useZamaKYC({ instance, initialMockChains: {} });
+  
+  const [formData, setFormData] = useState({
+    fullName: "",
+    dateOfBirth: "",
+    address: "",
+    documentType: "passport",
+    documentNumber: "",
+    country: ""
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    console.log("🚀 Form submitted!");
+    e.preventDefault();
+    
+    try {
+      console.log("📝 Submitting KYC with real contract:", formData);
+    console.log("📤 Calling kyc.submitKYC...");
+      
+      // Calculate age from date of birth
+      const birthDate = new Date(formData.dateOfBirth);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      
+      // Use real KYC submission
+      await kyc.submitKYC({
+        name: formData.fullName,
+        address: formData.address,
+        document: formData.documentNumber,
+        age: age
+      });
+      
+    } catch (error) {
+      console.error("KYC submission error:", error);
+    }
+  };
+
+  if (!isConnected) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="card bg-white shadow-2xl">
+          <div className="card-body items-center text-center">
+            <div className="text-6xl mb-4">🔌</div>
+            <h2 className="card-title text-2xl mb-4">Connect Your Wallet</h2>
+            <p className="text-gray-600 mb-6">
+              Please connect your wallet to submit KYC application
+            </p>
+            <div className="alert alert-info">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span className="text-sm">Use the "Connect Wallet" button in the header</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <div className="card bg-white shadow-2xl">
+        <div className="card-body">
+          <h2 className="card-title text-3xl mb-6 flex items-center gap-3">
+            <span className="text-4xl">📋</span>
+            KYC Application Form
+          </h2>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Personal Information */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-gray-700 flex items-center gap-2">
+                <span className="text-2xl">👤</span>
+                Personal Information
+              </h3>
+              
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-semibold">Full Name</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="John Doe"
+                  className="input input-bordered w-full"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-semibold">Date of Birth</span>
+                  </label>
+                  <input
+                    type="date"
+                    className="input input-bordered w-full"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
+                    required
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-semibold">Country</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="United States"
+                    className="input input-bordered w-full"
+                    value={formData.country}
+                    onChange={(e) => setFormData({...formData, country: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-semibold">Address</span>
+                </label>
+                <textarea
+                  className="textarea textarea-bordered h-24"
+                  placeholder="123 Main Street, City, Country"
+                  value={formData.address}
+                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  required
+                ></textarea>
+              </div>
+            </div>
+
+            {/* Document Information */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-gray-700 flex items-center gap-2">
+                <span className="text-2xl">📄</span>
+                Document Information
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-semibold">Document Type</span>
+                  </label>
+                  <select 
+                    className="select select-bordered w-full"
+                    value={formData.documentType}
+                    onChange={(e) => setFormData({...formData, documentType: e.target.value})}
+                  >
+                    <option value="passport">Passport</option>
+                    <option value="national_id">National ID</option>
+                    <option value="drivers_license">Driver's License</option>
+                  </select>
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-semibold">Document Number</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="AB1234567"
+                    className="input input-bordered w-full"
+                    value={formData.documentNumber}
+                    onChange={(e) => setFormData({...formData, documentNumber: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Privacy Notice */}
+            <div className="alert alert-info">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <div>
+                <div className="font-bold">Privacy & Encryption</div>
+                <div className="text-xs">Your data will be encrypted using Fully Homomorphic Encryption (FHE) before submission</div>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="card-actions justify-end">
+              <button
+                type="submit"
+                className={`btn btn-primary btn-lg w-full shadow-lg ${kyc.isProcessing ? 'loading' : ''}`}
+                disabled={kyc.isProcessing}
+              >
+                {kyc.isProcessing ? 'Submitting...' : '🚀 Submit KYC Application'}
+              </button>
+            </div>
+
+            {/* Status Messages */}
+            {kyc.message && (
+              <div className={`alert ${kyc.message.includes('success') ? 'alert-success' : 'alert-info'} animate-fade-in`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{kyc.message}</span>
+              </div>
+            )}
+
+            {/* KYC Status Display */}
+            {kyc.kycStatus && kyc.kycStatus !== 0 && (
+              <div className="alert alert-warning">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 w-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <div className="font-bold">Current Status: {["None", "Pending", "Approved", "Rejected"][kyc.kycStatus]}</div>
+                  <div className="text-xs">
+                    {kyc.kycStatus === 1 && "Your application is under review"}
+                    {kyc.kycStatus === 2 && "Your KYC has been approved!"}
+                    {kyc.kycStatus === 3 && "Your application was rejected. You can resubmit."}
+                  </div>
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+
+      {/* Connected Wallet Info */}
+      <div className="mt-6 text-center">
+        <div className="badge badge-outline badge-lg">
+          Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
+        </div>
+      </div>
+    </div>
+  );
+};

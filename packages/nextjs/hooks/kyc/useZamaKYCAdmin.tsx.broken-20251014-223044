@@ -1,0 +1,230 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useDeployedContractInfo } from "../helper";
+import { useWagmiEthers } from "../wagmi/useWagmiEthers";
+import { ethers } from "ethers";
+
+interface PendingApp {
+  user: string;
+  nameHash: string;
+  addressHash: string;
+  documentHash: string;
+  submittedAt: number;
+}
+
+export const useZamaKYCAdmin = (parameters: {
+  initialMockChains?: Readonly<Record<number, string>>;
+}) => {
+  const { initialMockChains } = parameters;
+  const { chainId, accounts, isConnected, ethersReadonlyProvider, ethersSigner } = useWagmiEthers(initialMockChains);
+  const [pendingApplications, setPendingApplications] = useState<PendingApp[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const zamaKYC = useDeployedContractInfo("ZamaKYC");
+
+  const getContract = (mode: "read" | "write") => {
+    if (!zamaKYC?.data) return undefined;
+    const providerOrSigner = mode === "read" ? ethersReadonlyProvider : ethersSigner;
+    if (!providerOrSigner) return undefined;
+    return new ethers.Contract(zamaKYC.data.address, zamaKYC.data.abi as any, providerOrSigner);
+  };
+
+  // Check admin - TÜM OLASI FONKSİYONLARI DENE
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!ethersReadonlyProvider || !zamaKYC?.data || !accounts?.[0]) {
+        setIsAdmin(false);
+        return;
+      }
+      try {
+        const contract = getContract("read");
+        if (!contract) return;
+        
+        const currentAddress = accounts[0].toLowerCase();
+        console.log("🔍 Checking admin for:", currentAddress);
+        
+        let adminAddress: string | undefined;
+        
+        // Try different possible admin functions
+        try {
+          adminAddress = await contract.owner();
+          console.log("✓ owner() returned:", adminAddress);
+        } catch (e1) {
+          console.log("✗ owner() failed, trying admin()...");
+          try {
+            adminAddress = await contract.admin();
+            console.log("✓ admin() returned:", adminAddress);
+          } catch (e2) {
+            console.log("✗ admin() failed, trying getAdmin()...");
+            try {
+              adminAddress = await contract.getAdmin();
+              console.log("✓ getAdmin() returned:", adminAddress);
+            } catch (e3) {
+              console.log("✗ getAdmin() failed, trying hasRole(DEFAULT_ADMIN_ROLE)...");
+              try {
+                const DEFAULT_ADMIN_ROLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
+                const hasAdminRole = await contract.hasRole(DEFAULT_ADMIN_ROLE, currentAddress);
+                console.log("✓ hasRole(DEFAULT_ADMIN_ROLE):", hasAdminRole);
+                setIsAdmin(hasAdminRole);
+                return;
+              } catch (e4) {
+                console.error("❌ ALL admin check methods failed!");
+                console.log("Contract functions:", Object.keys(contract.functions));
+                setIsAdmin(false);
+                return;
+              }
+            }
+          }
+        }
+        
+        if (adminAddress) {
+          const isAdminWallet = adminAddress.toLowerCase() === currentAddress;
+          console.log("👤 Admin check result:", {
+            contractAdmin: adminAddress,
+            connectedWallet: currentAddress,
+            isAdmin: isAdminWallet
+          });
+          setIsAdmin(isAdminWallet);
+          
+          if (!isAdminWallet) {
+            setMessage(`⚠️ Not admin! Contract owner: ${adminAddress}`);
+          }
+        }
+      } catch (e) {
+        console.error("❌ Admin check error:", e);
+        setIsAdmin(false);
+      }
+    };
+    checkAdmin();
+  }, [ethersReadonlyProvider, zamaKYC?.data, accounts]);
+
+  // Fetch pending (sadece admin ise)
+  useEffect(() => {
+    const fetchPending = async () => {
+      if (!ethersReadonlyProvider || !zamaKYC?.data || !isAdmin) {
+        console.log("⚠️ Skip fetch - not admin or not ready");
+        return;
+      }
+      try {
+        const contract = getContract("read");
+        if (!contract) return;
+        console.log("🔍 Fetching KYC events...");
+
+        const latestBlock = await ethersReadonlyProvider.getBlockNumber();
+        const deployBlock = 7000000; // <-- DEĞİŞTİR!
+        const step = 100;
+        
+        console.log(`📦 Scanning ${deployBlock} → ${latestBlock}`);
+        
+        const allEvents: any[] = [];
+        for (let fromBlock = deployBlock; fromBlock <= latestBlock; fromBlock += step) {
+          const toBlock = Math.min(fromBlock + step - 1, latestBlock);
+          try {
+            const events = await contract.queryFilter(contract.filters.KYCSubmitted(), fromBlock, toBlock);
+            if (events.length > 0) {
+              console.log(`📬 ${fromBlock}-${toBlock}: ${events.length} events`);
+              allEvents.push(...events);
+            }
+          } catch (e) {
+            console.warn(`Block ${fromBlock}-${toBlock} error`);
+          }
+        }
+
+        console.log(`📬 Total: ${allEvents.length} events`);
+
+        const pendingMap = new Map<string, PendingApp>();
+        for (const event of allEvents) {
+          if (!("args" in event)) continue;
+          const userAddress = event.args.user || event.args.realtor || event.args[0] as string;
+          try {
+            const data = await contract.getKYCData(userAddress);
+            const status = Number(data[3]);
+            console.log(`👤 ${userAddress.slice(0,10)}: status=${status}`);
+            if (status === 1) {
+              pendingMap.set(userAddress, {
+                user: userAddress,
+                nameHash: data[0].toString(),
+                addressHash: data[1].toString(),
+                documentHash: data[2].toString(),
+                submittedAt: Number(data[4]),
+              });
+            }
+          } catch (err) {
+            console.warn(`Error ${userAddress}:`, err);
+          }
+        }
+
+        const pending = Array.from(pendingMap.values());
+        console.log(`✅ PENDING: ${pending.length}`);
+        setPendingApplications(pending);
+      } catch (error) {
+        console.error("Fetch error:", error);
+      }
+    };
+    fetchPending();
+  }, [ethersReadonlyProvider, zamaKYC?.data, isAdmin, refreshTrigger]);
+
+  const approveKYC = useCallback(
+    async (applicant: string) => {
+      if (!ethersSigner || !isAdmin) return;
+      setIsProcessing(true);
+      setMessage("Approving...");
+      try {
+        const writeContract = getContract("write");
+        if (!writeContract) return;
+        const tx = await writeContract.approveKYC(applicant);
+        setMessage("Confirming...");
+        await tx.wait();
+        setMessage("✅ Approved!");
+        setTimeout(() => setRefreshTrigger(p => p + 1), 1000);
+      } catch (e: any) {
+        setMessage(`❌ ${e?.message || e}`);
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [ethersSigner, isAdmin],
+  );
+
+  const rejectKYC = useCallback(
+    async (applicant: string, reason: string) => {
+      if (!ethersSigner || !isAdmin) return;
+      setIsProcessing(true);
+      setMessage("Rejecting...");
+      try {
+        const writeContract = getContract("write");
+        if (!writeContract) return;
+        const tx = await writeContract.rejectKYC(applicant, reason);
+        setMessage("Confirming...");
+        await tx.wait();
+        setMessage("✅ Rejected!");
+        setTimeout(() => setRefreshTrigger(p => p + 1), 1000);
+      } catch (e: any) {
+        setMessage(`❌ ${e?.message || e}`);
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [ethersSigner, isAdmin],
+  );
+
+  const refreshPendingList = useCallback(() => {
+    setRefreshTrigger(p => p + 1);
+  }, []);
+
+  return {
+    pendingApplications,
+    approveKYC,
+    rejectKYC,
+    refreshPendingList,
+    message,
+    isProcessing,
+    chainId,
+    accounts,
+    isConnected,
+    isAdmin,
+  };
+};

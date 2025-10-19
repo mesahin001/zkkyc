@@ -1,0 +1,251 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useZamaKYCAdmin } from "~~/hooks/kyc/useZamaKYCAdmin";
+
+export const ZamaKYCAdminPanel = () => {
+  const admin = useZamaKYCAdmin({ initialMockChains: {} });
+  const [selectedUser, setSelectedUser] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+  const [isClient, setIsClient] = useState(false);
+
+  // Fix hydration - only render after client mount
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Mock function - unique data per user address
+  const getMockDecryptedData = (userAddress: string, nameHash: string, addressHash: string) => {
+    // Use hashes to generate deterministic but unique mock data
+    const seed = parseInt(userAddress.slice(-8), 16);
+    const nameSeed = parseInt(nameHash.slice(0, 8), 16);
+    const addressSeed = parseInt(addressHash.slice(0, 8), 16);
+    
+    const firstNames = ["Ahmet", "Mehmet", "Ayşe", "Fatma", "Ali", "Zeynep", "Mustafa", "Elif"];
+    const lastNames = ["Yılmaz", "Kaya", "Demir", "Çelik", "Şahin", "Öztürk", "Aydın", "Arslan"];
+    const cities = ["Istanbul", "Ankara", "Izmir", "Bursa", "Antalya", "Konya", "Adana"];
+    const streets = ["Atatürk Cad.", "İstiklal Sok.", "Cumhuriyet Mah.", "Barbaros Bulvarı"];
+    
+    const firstName = firstNames[nameSeed % firstNames.length];
+    const lastName = lastNames[(nameSeed >> 3) % lastNames.length];
+    const city = cities[addressSeed % cities.length];
+    const street = streets[(addressSeed >> 2) % streets.length];
+    
+    const year = 1970 + (seed % 30);
+    const month = String(1 + (seed % 12)).padStart(2, '0');
+    const day = String(1 + (seed % 28)).padStart(2, '0');
+    
+    return {
+      fullName: `${firstName} ${lastName}`,
+      dateOfBirth: `${year}-${month}-${day}`,
+      address: `${street} No:${10 + (addressSeed % 90)}, ${city}, Turkey`,
+      documentType: seed % 2 === 0 ? "Passport" : "National ID",
+      documentNumber: `${seed % 2 === 0 ? 'P' : 'T'}${userAddress.slice(-6).toUpperCase()}`,
+      nationality: "TR"
+    };
+  };
+
+  // Don't render until client-side to avoid hydration mismatch
+  if (!isClient) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="text-center">
+          <div className="animate-pulse">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!admin.isConnected) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-4">🔐 Admin Panel</h1>
+          <p className="text-gray-600 mb-4">Please connect your wallet to continue</p>
+          <div className="bg-yellow-50 border border-yellow-200 p-4 rounded mt-4">
+            <p className="text-sm">
+              <strong>Note:</strong> If wallet is connected but not showing, try:
+              <br />
+              1. Refresh the page (F5)
+              <br />
+              2. Disconnect and reconnect wallet
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold mb-2">🔐 zkKYC Admin Panel</h1>
+        <div className="bg-yellow-50 border border-yellow-200 p-4 rounded mb-4">
+          <p className="text-sm">
+            <strong>Admin Only:</strong> You must connect with the wallet that deployed the contract.
+            <br />
+            Contract: <span className="font-mono text-xs">0x115E877D0eA462c9B2F78fF43bf0E87E5EC5c18b</span>
+          </p>
+        </div>
+        <p className="text-gray-600">Review and manage KYC applications</p>
+      </div>
+
+      <div className="bg-white shadow-lg p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-xl">Pending Applications ({admin.pendingApplications.length})</h3>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded text-sm transition-colors"
+            type="button"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+
+        {admin.pendingApplications.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No pending applications</p>
+        ) : (
+          <div className="space-y-6">
+            {admin.pendingApplications.map(app => {
+              const mockData = getMockDecryptedData(app.user, app.nameHash, app.addressHash);
+              
+              return (
+                <div key={app.user} className="border border-gray-300 rounded-lg overflow-hidden">
+                  {/* Header */}
+                  <div className="bg-gray-50 px-4 py-3 border-b">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-semibold text-lg">📋 Application</span>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Submitted: {new Date(app.submittedAt * 1000).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="text-xs font-mono bg-white px-2 py-1 rounded border">
+                        {app.user.slice(0, 10)}...{app.user.slice(-8)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Decrypted KYC Data */}
+                  <div className="p-4 bg-blue-50 border-b border-blue-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm font-bold text-blue-900">🔓 Decrypted KYC Information</span>
+                      <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded">MOCK DATA</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white p-2 rounded">
+                        <div className="text-xs text-gray-500">Full Name</div>
+                        <div className="font-semibold">{mockData.fullName}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded">
+                        <div className="text-xs text-gray-500">Date of Birth</div>
+                        <div className="font-semibold">{mockData.dateOfBirth}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded col-span-2">
+                        <div className="text-xs text-gray-500">Address</div>
+                        <div className="font-semibold">{mockData.address}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded">
+                        <div className="text-xs text-gray-500">Document Type</div>
+                        <div className="font-semibold">{mockData.documentType}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded">
+                        <div className="text-xs text-gray-500">Document Number</div>
+                        <div className="font-semibold">{mockData.documentNumber}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded">
+                        <div className="text-xs text-gray-500">Nationality</div>
+                        <div className="font-semibold">{mockData.nationality}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Encrypted Hashes */}
+                  <details className="border-b">
+                    <summary className="px-4 py-2 bg-gray-50 cursor-pointer hover:bg-gray-100 text-sm font-medium">
+                      🔒 View Encrypted Hashes (Technical)
+                    </summary>
+                    <div className="p-4 bg-gray-50">
+                      <div className="space-y-2 text-xs font-mono">
+                        <div>
+                          <span className="text-gray-600">Name Hash:</span>
+                          <div className="bg-white p-2 rounded mt-1 break-all">{app.nameHash}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Address Hash:</span>
+                          <div className="bg-white p-2 rounded mt-1 break-all">{app.addressHash}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Document Hash:</span>
+                          <div className="bg-white p-2 rounded mt-1 break-all">{app.documentHash}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Actions */}
+                  <div className="p-4 bg-white flex gap-3">
+                    <button
+                      onClick={() => admin.approveKYC(app.user)}
+                      disabled={admin.isProcessing}
+                      className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 font-semibold"
+                    >
+                      ✅ Approve
+                    </button>
+                    <button
+                      onClick={() => setSelectedUser(app.user)}
+                      disabled={admin.isProcessing}
+                      className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold"
+                    >
+                      ❌ Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Reject Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Reject KYC</h3>
+            <textarea
+              placeholder="Rejection reason..."
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              className="w-full p-3 border rounded mb-4"
+              rows={3}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  admin.rejectKYC(selectedUser, rejectReason);
+                  setSelectedUser("");
+                  setRejectReason("");
+                }}
+                className="flex-1 bg-red-600 text-white py-2 rounded"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setSelectedUser("")}
+                className="flex-1 bg-gray-200 py-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {admin.message && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded">
+          <p className="text-sm">{admin.message}</p>
+        </div>
+      )}
+    </div>
+  );
+};

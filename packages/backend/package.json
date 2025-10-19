@@ -1,0 +1,15 @@
+{
+  "name": "@zama-kyc/backend-indexer",
+  "version": "1.0.0",
+  "description": "Blockchain indexer for zkKYC submissions",
+  "main": "indexer.js",
+  "scripts": {
+    "start": "node indexer.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.7",
+    "viem": "^2.21.0",
+    "cors": "^2.8.5"
+  }
+}

@@ -1,0 +1,65 @@
+import { useEffect, useState, useCallback } from "react";
+// ... diğer importları ekle (aynı kalabilir)
+
+// Burada deploy block'u kontratının deploy edildiği block ile değiştir!
+const DEPLOY_BLOCK=9377830; // <-- Buraya kendi Sepolia deploy block'unu gir!
+
+const fetchAllPendingApplications = async (contract, ethersProvider, deployBlock=DEPLOY_BLOCK, pendingStatus=1) => {
+  const step = 10;
+  const latestBlock = await ethersProvider.getBlockNumber();
+  const allEvents = [];
+  for (let fromBlock = deployBlock; fromBlock <= latestBlock; fromBlock += step) {
+    const toBlock = Math.min(fromBlock + step - 1, latestBlock);
+    try {
+      const events = await contract.queryFilter(contract.filters.KYCSubmitted(), fromBlock, toBlock);
+      allEvents.push(...events);
+    } catch (e) {
+      console.error(fromBlock, toBlock, e);
+    }
+  }
+  const addresses = new Set();
+  for (const event of allEvents) {
+    const userAddress = event.args.user || event.args.realtor || event.args[0];
+    addresses.add(userAddress);
+  }
+  const pendingApps = [];
+  for (const addr of addresses) {
+    try {
+      const data = await contract.getKYCData(addr);
+      if (Number(data[3]) === pendingStatus) {
+        pendingApps.push({
+          user: addr,
+          nameHash: data[0].toString(),
+          addressHash: data[1].toString(),
+          documentHash: data[2].toString(),
+          submittedAt: Number(data[4]),
+        });
+      }
+    } catch (e) {
+      console.error("getKYCData error:", addr, e);
+    }
+  }
+  return pendingApps;
+};
+
+export const useZamaKYCAdmin = (parameters) => {
+  // ... state ve contract init aynen kalsın
+  const [pendingApplications, setPendingApplications] = useState([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      if (!ethersReadonlyProvider || !zamaKYC?.data) return;
+      const contract = getContract("read");
+      const pendingList = await fetchAllPendingApplications(contract, ethersReadonlyProvider, DEPLOY_BLOCK);
+      setPendingApplications(pendingList);
+    })();
+  }, [ethersReadonlyProvider, zamaKYC?.data, refreshTrigger]);
+
+  // Diğer fonksiyonlar sabit kalabilir
+  return {
+    pendingApplications,
+    refreshPendingList: () => setRefreshTrigger((x) => x + 1),
+    // ... diğer fonksiyonlar
+  };
+}

@@ -1,0 +1,76 @@
+import { useEffect, useState, useCallback } from "react";
+// ... importlar
+
+const DEPLOY_BLOCK = 9377830; // <-- Değeri kendine göre değiştir!
+
+const fetchAllPendingApplications = async (contract, ethersProvider, deployBlock=DEPLOY_BLOCK, pendingStatus=1) => {
+  const step = 10;
+  const latestBlock = await ethersProvider.getBlockNumber();
+  const allEvents = [];
+  for (let fromBlock = deployBlock; fromBlock <= latestBlock; fromBlock += step) {
+    const toBlock = Math.min(fromBlock + step - 1, latestBlock);
+    try {
+      const events = await contract.queryFilter(contract.filters.KYCSubmitted(), fromBlock, toBlock);
+      allEvents.push(...events);
+    } catch (e) {
+      console.error(fromBlock, toBlock, e);
+    }
+  }
+  const addresses = new Set();
+  for (const event of allEvents) {
+    const userAddress = event.args.user || event.args.realtor || event.args[0];
+    addresses.add(userAddress);
+  }
+  const pendingApps = [];
+  for (const addr of addresses) {
+    try {
+      const data = await contract.getKYCData(addr);
+      if (Number(data[3]) === pendingStatus) {
+        pendingApps.push({
+          user: addr,
+          nameHash: data[0].toString(),
+          addressHash: data[1].toString(),
+          documentHash: data[2].toString(),
+          submittedAt: Number(data[4]),
+        });
+      }
+    } catch (e) {
+      console.error("getKYCData error:", addr, e);
+    }
+  }
+  return pendingApps;
+};
+
+export const useZamaKYCAdmin = (parameters) => {
+  // ... önceki state/init'ler burada
+  const [pendingApplications, setPendingApplications] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // client, chainId, accounts, ethersReadonlyProvider, ethersSigner, vs. init burada (önceki gibi)
+
+  useEffect(() => {
+    (async () => {
+      if (!ethersReadonlyProvider || !zamaKYC?.data) return;
+      const contract = getContract("read");
+      const pendingList = await fetchAllPendingApplications(contract, ethersReadonlyProvider, DEPLOY_BLOCK);
+      setPendingApplications(pendingList);
+    })();
+  }, [ethersReadonlyProvider, zamaKYC?.data, refreshTrigger]);
+
+  // approveKYC, rejectKYC vs. fonksiyonları aynı kalmalı!
+
+  return {
+    pendingApplications,
+    refreshPendingList: () => setRefreshTrigger((x) => x + 1),
+    isConnected,
+    message,
+    isProcessing,
+    chainId,
+    accounts,
+    // diğer fonksiyonlar burada
+    approveKYC,
+    rejectKYC,
+  };
+}

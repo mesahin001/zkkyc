@@ -1,0 +1,162 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useDeployedContractInfo } from "../helper";
+import { useWagmiEthers } from "../wagmi/useWagmiEthers";
+import { ethers } from "ethers";
+
+interface PendingApp {
+  user: string;
+  nameHash: string;
+  addressHash: string;
+  documentHash: string;
+  submittedAt: number;
+}
+
+export const useZamaKYCAdmin = (parameters: {
+  initialMockChains?: Readonly<Record<number, string>>;
+}) => {
+  const { initialMockChains } = parameters;
+  const { chainId, accounts, isConnected, ethersReadonlyProvider, ethersSigner } = useWagmiEthers(initialMockChains);
+
+  const [pendingApplications, setPendingApplications] = useState<PendingApp[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const zamaKYC = useDeployedContractInfo("ZamaKYC");
+
+  const getContract = (mode: "read" | "write") => {
+    if (!zamaKYC?.data) return undefined;
+    const providerOrSigner = mode === "read" ? ethersReadonlyProvider : ethersSigner;
+    if (!providerOrSigner) return undefined;
+    return new ethers.Contract(zamaKYC.data.address, zamaKYC.data.abi as any, providerOrSigner);
+  };
+
+  // Fetch pending applications from events
+  useEffect(() => {
+    const fetchPending = async () => {
+      if (!ethersReadonlyProvider || !zamaKYC?.data) return;
+
+      try {
+        const contract = getContract("read");
+        if (!contract) return;
+
+        console.log("🔍 Fetching KYC events... (refresh:", refreshTrigger, ")");
+
+        // Get KYCSubmitted events
+        const filter = contract.filters.KYCSubmitted();
+        const events = await contract.queryFilter(filter, -10000, "latest");
+        
+        console.log(`📬 Found ${events.length} submissions`);
+
+        const pendingMap = new Map<string, PendingApp>();
+
+        for (const event of events) {
+          if (!("args" in event)) continue;
+          
+          const userAddress = event.args.user || event.args.realtor || event.args[0] as string;
+          
+          try {
+            // Get current KYC data
+            const data = await contract.getKYCData(userAddress);
+            const status = Number(data[3]); // status is 4th element
+            
+            console.log(`👤 ${userAddress.slice(0, 8)}: status=${status}`);
+            
+            // Only include Pending (1)
+            if (status === 1) {
+              pendingMap.set(userAddress, {
+                user: userAddress,
+                nameHash: data[0].toString(),
+                addressHash: data[1].toString(),
+                documentHash: data[2].toString(),
+                submittedAt: Number(data[4]),
+              });
+            }
+          } catch (err) {
+            console.log(`⚠️ Error checking ${userAddress}:`, err);
+          }
+        }
+
+        const pending = Array.from(pendingMap.values());
+        console.log(`✅ Found ${pending.length} unique pending applications`);
+        setPendingApplications(pending);
+      } catch (error) {
+        console.error("Error fetching pending:", error);
+      }
+    };
+
+    fetchPending();
+  }, [ethersReadonlyProvider, zamaKYC?.data, refreshTrigger]);
+
+  const approveKYC = useCallback(
+    async (applicant: string) => {
+      if (!ethersSigner) return;
+      setIsProcessing(true);
+      setMessage("Approving KYC...");
+      try {
+        const writeContract = getContract("write");
+        if (!writeContract) {
+          setMessage("Contract not available");
+          return;
+        }
+        const tx = await writeContract.approveKYC(applicant);
+        setMessage("Waiting for confirmation...");
+        await tx.wait();
+        setMessage("✅ KYC approved successfully!");
+        // Trigger refresh instead of page reload
+        setTimeout(() => setRefreshTrigger(prev => prev + 1), 1000);
+      } catch (e: any) {
+        console.error("Approval error:", e);
+        setMessage(`❌ Approval failed: ${e?.message || String(e)}`);
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [ethersSigner],
+  );
+
+  const rejectKYC = useCallback(
+    async (applicant: string, reason: string) => {
+      if (!ethersSigner) return;
+      setIsProcessing(true);
+      setMessage("Rejecting KYC...");
+      try {
+        const writeContract = getContract("write");
+        if (!writeContract) {
+          setMessage("Contract not available");
+          return;
+        }
+        const tx = await writeContract.rejectKYC(applicant, reason);
+        setMessage("Waiting for confirmation...");
+        await tx.wait();
+        setMessage("✅ KYC rejected successfully!");
+        // Trigger refresh instead of page reload
+        setTimeout(() => setRefreshTrigger(prev => prev + 1), 1000);
+      } catch (e: any) {
+        console.error("Rejection error:", e);
+        setMessage(`❌ Rejection failed: ${e?.message || String(e)}`);
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [ethersSigner],
+  );
+
+  const refreshPendingList = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  return {
+    pendingApplications,
+    approveKYC,
+    rejectKYC,
+    refreshPendingList,
+    message,
+    isProcessing,
+    chainId,
+    accounts,
+    isConnected,
+  };
+};
