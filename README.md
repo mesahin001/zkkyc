@@ -1,13 +1,3 @@
-# 🔐 zkKYC - Privacy-Preserving Identity Verification
-
-[![License](https://img.shields.io/badge/License-BSD--3--Clause--Clear-blue.svg)](LICENSE)
-[![Zama Developer Program](https://img.shields.io/badge/Zama-Developer%20Program-purple)](https://www.zama.ai/programs/developer-program)
-[![Live Demo](https://img.shields.io/badge/Status-Live%20on%20Production-success)](https://fhekyc.ominas.ovh/)
-[![Contract](https://img.shields.io/badge/Contract-Sepolia-blue)](https://sepolia.etherscan.io/address/0x115E877D0eA462c9B2F78fF43bf0E87E5EC5c18b)
-
-> 🏆 **Built for Zama Developer Program October 2025**  
-> A production-ready decentralized KYC system leveraging Fully Homomorphic Encryption for privacy-preserving identity verification.
-
 # zkKYC - Privacy-Preserving KYC with Zama FHE
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-fhekyc.ominas.ovh-blue?style=for-the-badge)](https://fhekyc.ominas.ovh)
@@ -33,19 +23,6 @@ zkKYC enables **KYC verification without exposing personal data** on blockchain 
 ### 🚀 Live Demo
 - **User Portal:** [fhekyc.ominas.ovh](https://fhekyc.ominas.ovh)
 - **Admin Panel:** [fhekyc-admin.ominas.ovh](https://fhekyc-admin.ominas.ovh)
-
----
-
-## 🌐 Live Demo
-
-**Try it now - Fully functional on Sepolia testnet:**
-
-- 🔗 **Client Portal:** [https://fhekyc.ominas.ovh/](https://fhekyc.ominas.ovh/)  
-  *Submit your encrypted KYC information*
-
-- 🔗 **Admin Dashboard:** [https://fhekyc-admin.ominas.ovh/admin](https://fhekyc-admin.ominas.ovh/admin)  
-  *Review and approve/reject submissions (instant <100ms loads)*
-
 - 🔗 **Smart Contract:** [0x115E877D...c18b](https://sepolia.etherscan.io/address/0x115E877D0eA462c9B2F78fF43bf0E87E5EC5c18b)  
   *View on Sepolia Etherscan*
 
