@@ -26,6 +26,10 @@ zkKYC enables **KYC verification without exposing personal data** on blockchain 
 - 🔗 **Smart Contract:** [0x115E877D...c18b](https://sepolia.etherscan.io/address/0x115E877D0eA462c9B2F78fF43bf0E87E5EC5c18b)  
   *View on Sepolia Etherscan*
 
+## 🎬 Watch Demo Video
+
+[![zkKYC Demo – Privacy-Preserving KYC on Blockchain with Zama FHE](https://img.youtube.com/vi/E6WG24a-geg/0.jpg)](https://www.youtube.com/watch?v=E6WG24a-geg)
+
 ---
 
 ## ⚡ Why This Project Stands Out
